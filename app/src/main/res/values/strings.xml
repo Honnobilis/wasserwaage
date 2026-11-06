@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Wasserwaage</string>
+    <string name="mode_wall">Wand</string>
+    <string name="mode_surface">Fläche</string>
+    <string name="calibrate">Kalibrieren</string>
+    <string name="calibrate_title">Kalibrierung</string>
+    <string name="calibrate_wall_msg">Handy an eine sicher waagrechte bzw. senkrechte Kante legen und „Nullpunkt setzen“ tippen. Die Kalibrierung gilt für die aktuelle Ausrichtung des Handys.</string>
+    <string name="calibrate_surface_msg">Handy auf eine sicher ebene Fläche legen und „Nullpunkt setzen“ tippen.</string>
+    <string name="calibrate_set">Nullpunkt setzen</string>
+    <string name="calibrate_reset">Zurücksetzen</string>
+    <string name="cancel">Abbrechen</string>
+    <string name="calibrated">Kalibriert</string>
+    <string name="calibration_reset">Kalibrierung zurückgesetzt</string>
+    <string name="no_sensor">Dieses Gerät hat keinen Beschleunigungssensor.</string>
+    <string name="hint_wall">Handy mit dem Rücken an die Wand halten</string>
+    <string name="hint_surface">Handy mit dem Display nach oben hinlegen</string>
+    <string name="long_edge_horizontal">Lange Kante waagrecht</string>
+    <string name="long_edge_vertical">Lange Kante senkrecht</string>
+    <string name="longitudinal">Längs</string>
+    <string name="transverse">Quer</string>
+</resources>
