@@ -21,12 +21,20 @@ class SurfaceLevelView @JvmOverloads constructor(
     private var transverseDeg = 0.0
     private var valid = false
     private var hasData = false
+    private var held = false
 
     fun update(longitudinalDeg: Double, transverseDeg: Double, valid: Boolean) {
+        held = false
         this.longitudinalDeg = longitudinalDeg
         this.transverseDeg = transverseDeg
         this.valid = valid
         hasData = true
+        invalidate()
+    }
+
+    /** Friert die Anzeige ein (true) oder gibt sie wieder frei (false). */
+    fun setHeld(held: Boolean) {
+        this.held = held
         invalidate()
     }
 
@@ -41,7 +49,7 @@ class SurfaceLevelView @JvmOverloads constructor(
         }
 
         val pad = 16f * dens
-        val textBlock = 120f * dens
+        val textBlock = 150f * dens
         val t = min(w, h) * 0.11f
         // Radius so wählen, dass Kreis + senkrechte Libelle in die Breite und
         // Kreis + waagrechte Libelle + Texte in die Höhe passen
@@ -97,6 +105,9 @@ class SurfaceLevelView @JvmOverloads constructor(
             if (longitudinalDeg > 0) "oben höher" else "unten höher", rowSize)
         drawRow(canvas, w, y1 + rowSize * 1.9f, context.getString(R.string.transverse), transverseDeg,
             if (transverseDeg > 0) "rechts höher" else "links höher", rowSize)
+        if (held) {
+            d.drawText(canvas, context.getString(R.string.held), w / 2f, y1 + rowSize * 3.6f, rowSize * 0.7f, d.colorAccent, bold = true)
+        }
     }
 
     private fun drawRow(canvas: Canvas, w: Float, y: Float, label: String, deg: Double, side: String, size: Float) {

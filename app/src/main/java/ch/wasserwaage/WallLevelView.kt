@@ -21,12 +21,20 @@ class WallLevelView @JvmOverloads constructor(
     private var deviationDeg = 0.0
     private var valid = false
     private var hasData = false
+    private var held = false
 
     fun update(snapDeg: Int, deviationDeg: Double, valid: Boolean) {
+        held = false
         this.snapDeg = snapDeg
         this.deviationDeg = deviationDeg
         this.valid = valid
         hasData = true
+        invalidate()
+    }
+
+    /** Friert die Anzeige ein (true) oder gibt sie wieder frei (false). */
+    fun setHeld(held: Boolean) {
+        this.held = held
         invalidate()
     }
 
@@ -85,6 +93,10 @@ class WallLevelView @JvmOverloads constructor(
         // Ausrichtung
         val label = if (landscape) R.string.long_edge_horizontal else R.string.long_edge_vertical
         d.drawText(canvas, context.getString(label), cx, cy + fh * 0.38f, m * 0.045f, d.colorDim)
+
+        if (held) {
+            d.drawText(canvas, context.getString(R.string.held), cx, cy - fh * 0.43f, m * 0.05f, d.colorAccent, bold = true)
+        }
 
         canvas.restore()
     }

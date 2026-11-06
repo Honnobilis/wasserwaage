@@ -8,11 +8,18 @@ import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
 import android.hardware.SensorManager
+import android.os.Build
 import android.os.Bundle
+import android.os.VibrationEffect
+import android.os.Vibrator
+import android.os.VibratorManager
 import android.view.View
+import android.view.WindowInsets
 import android.view.WindowManager
 import android.widget.Button
 import android.widget.Toast
+import kotlin.math.abs
+import kotlin.math.max
 
 class MainActivity : Activity(), SensorEventListener {
 
@@ -26,8 +33,25 @@ class MainActivity : Activity(), SensorEventListener {
     private lateinit var surfaceView: SurfaceLevelView
     private lateinit var btnWall: Button
     private lateinit var btnSurface: Button
+    private lateinit var btnHold: Button
+    private lateinit var btnCalibrate: Button
 
     private var mode = Mode.WALL
+
+    /** Anzeige eingefroren? */
+    private var held = false
+
+    /** Ist die Messung gerade "im Lot"? Für das einmalige Vibrieren beim Erreichen. */
+    private var isLevel = false
+
+    private val vibrator: Vibrator? by lazy {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            getSystemService(VibratorManager::class.java)?.defaultVibrator
+        } else {
+            @Suppress("DEPRECATION")
+            getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
+        }
+    }
 
     // geglätteter Beschleunigungsvektor
     private val g = DoubleArray(3)
@@ -43,6 +67,7 @@ class MainActivity : Activity(), SensorEventListener {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        applySystemBarInsets(findViewById(R.id.root))
 
         prefs = getSharedPreferences("wasserwaage", Context.MODE_PRIVATE)
         sensorManager = getSystemService(Context.SENSOR_SERVICE) as SensorManager
@@ -52,10 +77,15 @@ class MainActivity : Activity(), SensorEventListener {
         surfaceView = findViewById(R.id.surfaceView)
         btnWall = findViewById(R.id.btnWall)
         btnSurface = findViewById(R.id.btnSurface)
+        btnHold = findViewById(R.id.btnHold)
+        btnCalibrate = findViewById(R.id.btnCalibrate)
 
         btnWall.setOnClickListener { setMode(Mode.WALL) }
         btnSurface.setOnClickListener { setMode(Mode.SURFACE) }
-        findViewById<Button>(R.id.btnCalibrate).setOnClickListener { showCalibrationDialog() }
+        btnCalibrate.setOnClickListener { showCalibrationDialog() }
+        btnHold.setOnClickListener { setHeld(!held) }
+        styleButton(btnCalibrate, false)
+        setHeld(false)
 
         setMode(if (prefs.getString(KEY_MODE, null) == Mode.SURFACE.name) Mode.SURFACE else Mode.WALL)
 
@@ -75,18 +105,50 @@ class MainActivity : Activity(), SensorEventListener {
         sensorManager.unregisterListener(this)
     }
 
+    /**
+     * Ab Android 15 zeichnet die App unter Status- und Navigationsleiste.
+     * Damit nichts verdeckt wird, rücken wir den Inhalt um diese Bereiche ein.
+     */
+    private fun applySystemBarInsets(root: View) {
+        root.setOnApplyWindowInsetsListener { v, insets ->
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                val b = insets.getInsets(WindowInsets.Type.systemBars() or WindowInsets.Type.displayCutout())
+                v.setPadding(b.left, b.top, b.right, b.bottom)
+            } else {
+                @Suppress("DEPRECATION")
+                v.setPadding(
+                    insets.systemWindowInsetLeft, insets.systemWindowInsetTop,
+                    insets.systemWindowInsetRight, insets.systemWindowInsetBottom,
+                )
+            }
+            insets
+        }
+        root.requestApplyInsets()
+    }
+
+    private fun setHeld(newHeld: Boolean) {
+        held = newHeld
+        btnHold.setText(if (held) R.string.resume else R.string.hold)
+        styleButton(btnHold, held)
+        wallView.setHeld(held)
+        surfaceView.setHeld(held)
+        if (!held) render()
+    }
+
     private fun setMode(newMode: Mode) {
         mode = newMode
+        isLevel = false
+        if (held) setHeld(false)
         prefs.edit().putString(KEY_MODE, mode.name).apply()
         wallView.visibility = if (mode == Mode.WALL) View.VISIBLE else View.GONE
         surfaceView.visibility = if (mode == Mode.SURFACE) View.VISIBLE else View.GONE
-        styleModeButton(btnWall, mode == Mode.WALL)
-        styleModeButton(btnSurface, mode == Mode.SURFACE)
+        styleButton(btnWall, mode == Mode.WALL)
+        styleButton(btnSurface, mode == Mode.SURFACE)
         render()
     }
 
-    private fun styleModeButton(b: Button, selected: Boolean) {
-        b.setBackgroundColor(if (selected) getColor(R.color.accent) else 0)
+    private fun styleButton(b: Button, selected: Boolean) {
+        b.setBackgroundColor(getColor(if (selected) R.color.accent else R.color.surface))
         b.setTextColor(getColor(if (selected) R.color.background else R.color.text))
     }
 
@@ -115,18 +177,51 @@ class MainActivity : Activity(), SensorEventListener {
                 wallSnap = r.snapDeg
                 wallRawDeviation = r.deviationDeg
                 val dev = LevelMath.signedDiff(r.deviationDeg, wallOffset(r.snapDeg))
-                wallView.update(r.snapDeg, dev, r.outOfPlaneDeg < MAX_WALL_TILT_DEG)
+                val valid = r.outOfPlaneDeg < MAX_WALL_TILT_DEG
+                if (held) return
+                wallView.update(r.snapDeg, dev, valid)
+                updateLevelFeedback(valid, abs(dev))
             }
             Mode.SURFACE -> {
                 val s = LevelMath.surface(g[0], g[1], g[2])
                 surfaceRawLong = s.longitudinalDeg
                 surfaceRawTrans = s.transverseDeg
-                surfaceView.update(
-                    s.longitudinalDeg - prefs.getFloat(KEY_SURF_LONG, 0f),
-                    s.transverseDeg - prefs.getFloat(KEY_SURF_TRANS, 0f),
-                    s.tiltDeg < MAX_SURFACE_TILT_DEG,
-                )
+                val long = s.longitudinalDeg - prefs.getFloat(KEY_SURF_LONG, 0f)
+                val trans = s.transverseDeg - prefs.getFloat(KEY_SURF_TRANS, 0f)
+                val valid = s.tiltDeg < MAX_SURFACE_TILT_DEG
+                if (held) return
+                surfaceView.update(long, trans, valid)
+                updateLevelFeedback(valid, max(abs(long), abs(trans)))
             }
+        }
+    }
+
+    /**
+     * Vibriert einmal kurz, sobald die Abweichung unter die Grün-Grenze fällt.
+     * Erst wenn sie wieder deutlich darüber liegt, kann es erneut vibrieren
+     * (verhindert Dauersummen durch Sensorrauschen an der Grenze).
+     */
+    private fun updateLevelFeedback(valid: Boolean, deviationDeg: Double) {
+        if (!valid) {
+            isLevel = false
+            return
+        }
+        if (!isLevel && deviationDeg < LevelDraw.OK_DEG) {
+            isLevel = true
+            vibrate()
+        } else if (isLevel && deviationDeg > LEVEL_RELEASE_DEG) {
+            isLevel = false
+        }
+    }
+
+    private fun vibrate() {
+        val v = vibrator ?: return
+        if (!v.hasVibrator()) return
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            v.vibrate(VibrationEffect.createOneShot(VIBRATION_MS, VibrationEffect.DEFAULT_AMPLITUDE))
+        } else {
+            @Suppress("DEPRECATION")
+            v.vibrate(VIBRATION_MS)
         }
     }
 
@@ -171,6 +266,8 @@ class MainActivity : Activity(), SensorEventListener {
 
     companion object {
         private const val SMOOTHING = 0.08
+        private const val LEVEL_RELEASE_DEG = 0.35
+        private const val VIBRATION_MS = 60L
         private const val MAX_WALL_TILT_DEG = 40.0
         private const val MAX_SURFACE_TILT_DEG = 35.0
         private const val KEY_MODE = "mode"

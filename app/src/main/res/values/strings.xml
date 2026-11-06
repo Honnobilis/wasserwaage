@@ -17,6 +17,9 @@
     <string name="hint_surface">Handy mit dem Display nach oben hinlegen</string>
     <string name="long_edge_horizontal">Lange Kante waagrecht</string>
     <string name="long_edge_vertical">Lange Kante senkrecht</string>
+    <string name="hold">Halten</string>
+    <string name="resume">Weiter</string>
+    <string name="held">Gehalten</string>
     <string name="longitudinal">Längs</string>
     <string name="transverse">Quer</string>
 </resources>

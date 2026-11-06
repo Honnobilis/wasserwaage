@@ -13,6 +13,7 @@ class LevelDraw(context: Context) {
 
     val colorText = context.getColor(R.color.text)
     val colorDim = context.getColor(R.color.text_dim)
+    val colorAccent = context.getColor(R.color.accent)
     private val colorOk = context.getColor(R.color.level_ok)
     private val colorNear = context.getColor(R.color.level_near)
     private val colorOff = context.getColor(R.color.level_off)

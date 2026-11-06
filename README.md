@@ -13,7 +13,11 @@ Einfache Android-App (Kotlin, ohne Zusatzbibliotheken), die den Beschleunigungss
 - Zeigt die Neigung in Längs- und Querrichtung in Grad und mm/m.
 - Grafisch: Dosenlibelle für beide Richtungen sowie je eine Röhrenlibelle für längs und quer.
 
-Farben: grün < 0,2°, gelb < 1°, sonst orange.
+Farben: grün < 0,2°, gelb < 1°, sonst orange. Beim Erreichen von grün vibriert das Handy einmal kurz.
+
+## Halten
+
+„Halten“ friert die Anzeige ein, z. B. um den Wert an einer schwer einsehbaren Stelle abzulesen. „Weiter“ misst wieder live.
 
 ## Kalibrieren
 
