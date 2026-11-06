@@ -54,6 +54,12 @@
             android:text="@string/hold" />
 
         <Button
+            android:id="@+id/btnVibration"
+            style="@style/ModeButton"
+            android:layout_marginStart="8dp"
+            android:text="@string/vibration" />
+
+        <Button
             android:id="@+id/btnCalibrate"
             style="@style/ModeButton"
             android:layout_marginStart="8dp"

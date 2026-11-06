@@ -20,6 +20,10 @@
     <string name="hold">Halten</string>
     <string name="resume">Weiter</string>
     <string name="held">Gehalten</string>
+    <string name="vibration">Vibration</string>
+    <string name="vibration_off">Aus</string>
+    <string name="vibration_level_only">Nur im Lot (Doppelpuls)</string>
+    <string name="vibration_approach">Annäherung (Ticken + Doppelpuls)</string>
     <string name="longitudinal">Längs</string>
     <string name="transverse">Quer</string>
 </resources>

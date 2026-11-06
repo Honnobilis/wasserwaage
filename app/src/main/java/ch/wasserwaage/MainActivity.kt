@@ -10,6 +10,7 @@ import android.hardware.SensorEventListener
 import android.hardware.SensorManager
 import android.os.Build
 import android.os.Bundle
+import android.os.SystemClock
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
@@ -35,14 +36,14 @@ class MainActivity : Activity(), SensorEventListener {
     private lateinit var btnSurface: Button
     private lateinit var btnHold: Button
     private lateinit var btnCalibrate: Button
+    private lateinit var btnVibration: Button
 
     private var mode = Mode.WALL
 
     /** Anzeige eingefroren? */
     private var held = false
 
-    /** Ist die Messung gerade "im Lot"? Für das einmalige Vibrieren beim Erreichen. */
-    private var isLevel = false
+    private val haptics = HapticLogic()
 
     private val vibrator: Vibrator? by lazy {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
@@ -84,6 +85,12 @@ class MainActivity : Activity(), SensorEventListener {
         btnSurface.setOnClickListener { setMode(Mode.SURFACE) }
         btnCalibrate.setOnClickListener { showCalibrationDialog() }
         btnHold.setOnClickListener { setHeld(!held) }
+        btnVibration = findViewById(R.id.btnVibration)
+        btnVibration.setOnClickListener { showVibrationDialog() }
+        haptics.mode = HapticLogic.Mode.entries.firstOrNull { it.name == prefs.getString(KEY_VIBRATION, null) }
+            ?: HapticLogic.Mode.APPROACH
+        styleButton(btnVibration, false)
+        updateVibrationButton()
         styleButton(btnCalibrate, false)
         setHeld(false)
 
@@ -137,7 +144,7 @@ class MainActivity : Activity(), SensorEventListener {
 
     private fun setMode(newMode: Mode) {
         mode = newMode
-        isLevel = false
+        haptics.reset()
         if (held) setHeld(false)
         prefs.edit().putString(KEY_MODE, mode.name).apply()
         wallView.visibility = if (mode == Mode.WALL) View.VISIBLE else View.GONE
@@ -196,33 +203,64 @@ class MainActivity : Activity(), SensorEventListener {
         }
     }
 
-    /**
-     * Vibriert einmal kurz, sobald die Abweichung unter die Grün-Grenze fällt.
-     * Erst wenn sie wieder deutlich darüber liegt, kann es erneut vibrieren
-     * (verhindert Dauersummen durch Sensorrauschen an der Grenze).
-     */
     private fun updateLevelFeedback(valid: Boolean, deviationDeg: Double) {
-        if (!valid) {
-            isLevel = false
-            return
-        }
-        if (!isLevel && deviationDeg < LevelDraw.OK_DEG) {
-            isLevel = true
-            vibrate()
-        } else if (isLevel && deviationDeg > LEVEL_RELEASE_DEG) {
-            isLevel = false
+        when (haptics.update(valid, deviationDeg, SystemClock.elapsedRealtime())) {
+            HapticLogic.Event.TICK -> vibrateTick()
+            HapticLogic.Event.LEVEL -> vibrateLevel()
+            HapticLogic.Event.NONE -> Unit
         }
     }
 
-    private fun vibrate() {
-        val v = vibrator ?: return
-        if (!v.hasVibrator()) return
+    /** Ganz kurzes Klopfen beim Annähern – stört die Messung kaum. */
+    private fun vibrateTick() {
+        val v = vibrator?.takeIf { it.hasVibrator() } ?: return
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            v.vibrate(VibrationEffect.createOneShot(VIBRATION_MS, VibrationEffect.DEFAULT_AMPLITUDE))
+            val amp = if (v.hasAmplitudeControl()) TICK_AMPLITUDE else VibrationEffect.DEFAULT_AMPLITUDE
+            v.vibrate(VibrationEffect.createOneShot(TICK_MS, amp))
         } else {
             @Suppress("DEPRECATION")
-            v.vibrate(VIBRATION_MS)
+            v.vibrate(TICK_MS)
         }
+    }
+
+    /** Kräftiger Doppelpuls im Lot. */
+    private fun vibrateLevel() {
+        val v = vibrator?.takeIf { it.hasVibrator() } ?: return
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val effect = if (v.hasAmplitudeControl()) {
+                VibrationEffect.createWaveform(LEVEL_PATTERN, intArrayOf(0, 255, 0, 255), -1)
+            } else {
+                VibrationEffect.createWaveform(LEVEL_PATTERN, -1)
+            }
+            v.vibrate(effect)
+        } else {
+            @Suppress("DEPRECATION")
+            v.vibrate(LEVEL_PATTERN, -1)
+        }
+    }
+
+    private fun showVibrationDialog() {
+        val modes = HapticLogic.Mode.entries
+        val labels = arrayOf(
+            getString(R.string.vibration_off),
+            getString(R.string.vibration_level_only),
+            getString(R.string.vibration_approach),
+        )
+        AlertDialog.Builder(this)
+            .setTitle(R.string.vibration)
+            .setSingleChoiceItems(labels, modes.indexOf(haptics.mode)) { dialog, which ->
+                haptics.mode = modes[which]
+                haptics.reset()
+                prefs.edit().putString(KEY_VIBRATION, haptics.mode.name).apply()
+                updateVibrationButton()
+                dialog.dismiss()
+            }
+            .setNegativeButton(R.string.cancel, null)
+            .show()
+    }
+
+    private fun updateVibrationButton() {
+        btnVibration.setTextColor(getColor(if (haptics.mode == HapticLogic.Mode.OFF) R.color.text_dim else R.color.text))
     }
 
     private fun wallOffset(snap: Int): Double = prefs.getFloat(KEY_WALL_PREFIX + snap, 0f).toDouble()
@@ -266,8 +304,10 @@ class MainActivity : Activity(), SensorEventListener {
 
     companion object {
         private const val SMOOTHING = 0.08
-        private const val LEVEL_RELEASE_DEG = 0.35
-        private const val VIBRATION_MS = 60L
+        private const val TICK_MS = 18L
+        private const val TICK_AMPLITUDE = 160
+        private val LEVEL_PATTERN = longArrayOf(0, 120, 80, 120)
+        private const val KEY_VIBRATION = "vibration"
         private const val MAX_WALL_TILT_DEG = 40.0
         private const val MAX_SURFACE_TILT_DEG = 35.0
         private const val KEY_MODE = "mode"

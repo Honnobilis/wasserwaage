@@ -13,7 +13,14 @@ Einfache Android-App (Kotlin, ohne Zusatzbibliotheken), die den Beschleunigungss
 - Zeigt die Neigung in Längs- und Querrichtung in Grad und mm/m.
 - Grafisch: Dosenlibelle für beide Richtungen sowie je eine Röhrenlibelle für längs und quer.
 
-Farben: grün < 0,2°, gelb < 1°, sonst orange. Beim Erreichen von grün vibriert das Handy einmal kurz.
+Farben: grün < 0,2°, gelb < 1°, sonst orange.
+
+## Vibration
+
+Über „Vibration“ wählbar (wird gespeichert):
+- **Annäherung** (Standard): Unter 2° Abweichung kurze Ticks, die schneller werden, je näher man dem Lot kommt, und beim Entfernen wieder langsamer. Im Lot ein kräftiger Doppelpuls, danach Ruhe. Bewegt sich der Messwert 3 Sekunden kaum, verstummen die Ticks, bis wieder justiert wird.
+- **Nur im Lot**: nur der Doppelpuls.
+- **Aus**
 
 ## Halten
 
